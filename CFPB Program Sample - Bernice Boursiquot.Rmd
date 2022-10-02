@@ -1,0 +1,171 @@
+---
+title: "CFPB Program Submission"
+author: "Bernice Boursiquot"
+date: "9/27/2022"
+output: word_document
+---
+
+```{r Setup - Loading in required libraries,  include = FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+library(httr)
+library(jsonlite)
+library(dplyr)
+library(janitor)
+library(rlang)
+
+```
+
+
+```{r Pulling in Data}
+
+stateSite = "https://ffiec.cfpb.gov/v2/data-browser-api/view/csv?states=VA,DC,MD&years=2018&actions_taken=5,6"
+
+data = read.csv(stateSite)
+```
+
+```{r Exploring the Data}
+
+head(data)
+
+colnames(data)
+
+#Counts by state####
+data %>%
+  group_by(state_code) %>%
+    count()
+
+#Counts by action taken####
+data %>%
+  group_by(action_taken) %>%
+    count()
+
+#Notes: 5 + File closed for incompleteness; 6 = Purchased loan
+
+#Counts by applicant race####
+data %>%
+  group_by(applicant_race.5) %>%
+    count()
+
+data %>%
+  group_by(applicant_race_observed) %>%
+    count()
+
+data %>%
+  count(applicant_race.1) 
+
+data %>%
+  group_by(applicant_ethnicity.1) %>%
+    count()
+
+```
+
+
+```{r Recoding Variables}
+
+#Re-coding Ethnicity to 1/0####
+
+data2 = 
+  data %>%
+    mutate(hispanicLatino = if_else(applicant_ethnicity.1 == 2, 0,
+                                     if_else(is.na(applicant_ethnicity.1),2,1)),
+           aian = if_else(applicant_race.1 == 1 & (is.na(applicant_ethnicity.2)|is.na(applicant_ethnicity.3)|is.na(applicant_ethnicity.4)|is.na(applicant_ethnicity.5)), 1, 0),
+         
+        asian = if_else(applicant_race.1 %in% c(2,21:27) & 
+(is.na(applicant_ethnicity.2)|is.na(applicant_ethnicity.3)|is.na(applicant_ethnicity.4)|is.na(applicant_ethnicity.5)), 1, 0),
+
+        black = if_else(applicant_race.1 == 3 & 
+(is.na(applicant_ethnicity.2)|is.na(applicant_ethnicity.3)|is.na(applicant_ethnicity.4)|is.na(applicant_ethnicity.5)), 1, 0),
+
+        nhopi = if_else(applicant_race.1 %in% c(4, 41:44) & 
+(is.na(applicant_ethnicity.2)|is.na(applicant_ethnicity.3)|is.na(applicant_ethnicity.4)|is.na(applicant_ethnicity.5)), 1, 0),
+
+        white =  if_else(applicant_race.1 == 5 & 
+(is.na(applicant_ethnicity.2)|is.na(applicant_ethnicity.3)|is.na(applicant_ethnicity.4)|is.na(applicant_ethnicity.5)), 1, 0),
+
+      multiRace = if_else(applicant_race.1 == 1 
+                          & (applicant_race.2 %in% c(2,21:27, 3, 4, 41:44, 5) |
+                             applicant_race.3 %in% c(2,21:27, 3, 4, 41:44, 5) |
+                             applicant_race.4 %in% c(2,21:27, 3, 4, 41:44, 5) |
+                             applicant_race.5 %in% c(2,21:27, 3, 4, 41:44, 5))|
+
+
+
+                             applicant_race.1 %in% c(2, 21:27) 
+                          & (applicant_race.2 %in% c(1, 3, 4, 41:44, 5)|
+                             applicant_race.3 %in% c(1, 3, 4, 41:44, 5)|
+                             applicant_race.4 %in% c(1, 3, 4, 41:44, 5)|
+                             applicant_race.5 %in% c(1, 3, 4, 41:44, 5))|
+                            
+                             applicant_race.1 %in% c(3) 
+                          & (applicant_race.2 %in% c(1, 2, 21:27, 4, 41:44, 5)|
+                             applicant_race.3 %in% c(1, 2, 21:27, 4, 41:44, 5)|
+                             applicant_race.4 %in% c(1, 2, 21:27, 4, 41:44, 5)|
+                             applicant_race.5 %in% c(1, 2, 21:27, 4, 41:44, 5))|
+                               
+                             applicant_race.1 %in% c(4, 41:44) 
+                          & (applicant_race.2 %in% c(1, 2, 21:27, 3, 5)|
+                             applicant_race.3 %in% c(1, 2, 21:27, 3, 5)|
+                             applicant_race.4 %in% c(1, 2, 21:27, 3, 5)|
+                             applicant_race.5 %in% c(1, 2, 21:27, 3, 5))|
+                            
+                             applicant_race.1 %in% c(4) 
+                          & (applicant_race.2 %in% c(1, 2, 21:27, 3, 4, 41:44)|
+                             applicant_race.3 %in% c(1, 2, 21:27, 3, 4, 41:44)|
+                             applicant_race.4 %in% c(1, 2, 21:27, 3, 4, 41:44)|
+                             applicant_race.5 %in% c(1, 2, 21:27, 3, 4, 41:44))  
+                             ,1, 0))
+  
+
+data2 %>%
+  count(applicant_race.1, applicant_race.2, applicant_race.3, asian)
+
+
+```
+
+
+```{r Looking at State and Race Counts}
+
+stateCrosstabFxn = function(var){
+    
+    data2 %>%
+      group_by(state_code, {{var}}) %>%
+        summarise(countVar = n()) %>%
+          mutate(pctVar = scales::percent(countVar/sum(countVar), 0.1))
+
+}
+
+aianStats = stateCrosstabFxn(aian)
+
+asianStats = stateCrosstabFxn(asian)
+
+blackStats = stateCrosstabFxn(black)
+
+nhopiStats = stateCrosstabFxn(nhopi)
+
+whiteStats = stateCrosstabFxn(white)
+
+multiRaceStats =  stateCrosstabFxn(multiRace)
+
+
+```
+
+
+```{r State and Actions Taken}
+
+actiontakeStats = stateCrosstabFxn(action_taken)
+
+```
+
+
+```{r Race, State, Actions Taken}
+
+ data2 %>%
+      group_by(state_code, aian, action_taken) %>%
+        summarise(countVar = n()) %>%
+          mutate(pctVar = scales::percent(countVar/sum(countVar), 0.1))
+
+
+```
+
