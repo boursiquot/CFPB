@@ -1,0 +1,341 @@
+---
+title: "CFPB Program Submission"
+author: "Author: Bernice Boursiquot"
+date: "9/27/2022"
+output: 
+  word_document:
+    toc: true
+  
+---
+# Introduction - R Packages and Data Cleaning
+
+This program is located at this private repo https://github.com/boursiquot/CFPB. Permission will be granted upon request.
+
+For this coding example, the following R libraries are needed:
+1) dplyr
+2) httr
+3) janitor
+4) jsonlite
+5) knitr
+6) rlang
+7) scales
+
+```{r Setup - Loading in required libraries,  include = FALSE }
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
+
+set.seed(1)
+
+library(httr)
+library(jsonlite)
+library(knitr)
+library(dplyr)
+library(janitor)
+library(rlang)
+
+```
+
+ 
+```{r Pulling in User-Defined Functions}
+
+stateCrosstabFxn = function(var){
+
+
+}
+
+
+```
+
+```{r Pulling in Data, include = FALSE}
+
+stateSite = "https://ffiec.cfpb.gov/v2/data-browser-api/view/csv?states=VA,DC,MD&years=2018&actions_taken=5,6"
+
+data = read.csv(stateSite)
+
+```
+
+The data for this exercise come from CFPB's site - `r stateSite`.
+
+```{r Exploring the Data, include = FALSE}
+
+head(data)
+
+colnames(data)
+
+#Counts by state####
+data %>%
+  group_by(state_code) %>%
+    count()
+
+
+
+#Counts by applicant race####
+data %>%
+  group_by(applicant_race.5) %>%
+    count()
+
+data %>%
+  group_by(applicant_race_observed) %>%
+    count()
+
+data %>%
+  count(applicant_race.1) 
+
+data %>%
+  group_by(applicant_ethnicity.1) %>%
+    count()
+
+```
+
+# Analysis
+For this exercise, I am interested in looking at the actions taken on a loan; there are 2 outcomes in the dataset - 5 (File closed for incompleteness) and 6 (Purchased loan). 
+
+```{r }
+
+#Counts by action taken####
+kable(data %>%
+  group_by(action_taken) %>%
+    count() %>%
+      mutate(N = scales::comma(n)) %>%
+        select(-n), col.names = c("Action Taken", "N"), align = "cc")
+
+#Notes: 5 = File closed for incompleteness; 6 = Purchased loan
+
+
+```
+
+
+```{r}
+
+data2 =
+  data %>%
+    mutate(race = (if_else(applicant_race.1 == 1 
+                     & (applicant_race.2 %in% c(2,21:27, 3, 4, 41:44, 5) |
+                        applicant_race.3 %in% c(2,21:27, 3, 4, 41:44, 5) |
+                        applicant_race.4 %in% c(2,21:27, 3, 4, 41:44, 5) |
+                        applicant_race.5 %in% c(2,21:27, 3, 4, 41:44, 5))|
+                              
+                                      applicant_race.1 %in% c(2, 21:27) 
+                                    & (applicant_race.2 %in% c(1, 3, 4, 41:44, 5)|
+                                         applicant_race.3 %in% c(1, 3, 4, 41:44, 5)|
+                                         applicant_race.4 %in% c(1, 3, 4, 41:44, 5)|
+                                         applicant_race.5 %in% c(1, 3, 4, 41:44, 5))|
+                                      
+                                      applicant_race.1 %in% c(3) 
+                                    & (applicant_race.2 %in% c(1, 2, 21:27, 4, 41:44, 5)|
+                                         applicant_race.3 %in% c(1, 2, 21:27, 4, 41:44, 5)|
+                                         applicant_race.4 %in% c(1, 2, 21:27, 4, 41:44, 5)|
+                                         applicant_race.5 %in% c(1, 2, 21:27, 4, 41:44, 5))|
+                                      
+                                      applicant_race.1 %in% c(4, 41:44) 
+                                    & (applicant_race.2 %in% c(1, 2, 21:27, 3, 5)|
+                                         applicant_race.3 %in% c(1, 2, 21:27, 3, 5)|
+                                         applicant_race.4 %in% c(1, 2, 21:27, 3, 5)|
+                                         applicant_race.5 %in% c(1, 2, 21:27, 3, 5))|
+                                      
+                                      applicant_race.1 %in% c(5) 
+                                    & (applicant_race.2 %in% c(1, 2, 21:27, 3, 4, 41:44)|
+                                         applicant_race.3 %in% c(1, 2, 21:27, 3, 4, 41:44)|
+                                         applicant_race.4 %in% c(1, 2, 21:27, 3, 4, 41:44)|
+                                         applicant_race.5 %in% c(1, 2, 21:27, 3, 4, 41:44))  
+                                    ,6,
+         if_else(applicant_race.1 == 1 & (is.na(applicant_ethnicity.2)|is.na(applicant_ethnicity.3)|is.na(applicant_ethnicity.4)|is.na(applicant_ethnicity.5)), 1, #aian
+               if_else(applicant_race.1 %in% c(2,21:27) 
+               & (is.na(applicant_ethnicity.2)|is.na(applicant_ethnicity.3)|is.na(applicant_ethnicity.4)|is.na(applicant_ethnicity.5)), 2, #asian
+                
+               if_else(applicant_race.1 == 3 
+                & (is.na(applicant_ethnicity.2)|is.na(applicant_ethnicity.3)|is.na(applicant_ethnicity.4)|is.na(applicant_ethnicity.5)), 3, #black
+
+                if_else(applicant_race.1 %in% c(4, 41:44) 
+                & (is.na(applicant_ethnicity.2)|is.na(applicant_ethnicity.3)|is.na(applicant_ethnicity.4)|is.na(applicant_ethnicity.5)), 4, #nhopi
+
+                if_else(applicant_race.1 == 5  
+                & (is.na(applicant_ethnicity.2)|is.na(applicant_ethnicity.3)|is.na(applicant_ethnicity.4)|is.na(applicant_ethnicity.5)), 5, NULL)))))))) #white
+                
+
+```
+
+
+```{r Recoding Variables, include = FALSE}
+
+#Re-coding Ethnicity to 1/0####
+
+data3 = 
+  data2 %>%
+    mutate(hispanicLatino = if_else(applicant_ethnicity.1 == 2, 0,
+                                     if_else(is.na(applicant_ethnicity.1),2,1)),
+           aian = if_else(applicant_race.1 == 1 & (is.na(applicant_ethnicity.2)|is.na(applicant_ethnicity.3)|is.na(applicant_ethnicity.4)|is.na(applicant_ethnicity.5)), 1, 0),
+         
+        asian = if_else(applicant_race.1 %in% c(2,21:27) & 
+(is.na(applicant_ethnicity.2)|is.na(applicant_ethnicity.3)|is.na(applicant_ethnicity.4)|is.na(applicant_ethnicity.5)), 1, 0),
+
+        black = if_else(applicant_race.1 == 3 & 
+(is.na(applicant_ethnicity.2)|is.na(applicant_ethnicity.3)|is.na(applicant_ethnicity.4)|is.na(applicant_ethnicity.5)), 1, 0),
+
+        nhopi = if_else(applicant_race.1 %in% c(4, 41:44) & 
+(is.na(applicant_ethnicity.2)|is.na(applicant_ethnicity.3)|is.na(applicant_ethnicity.4)|is.na(applicant_ethnicity.5)), 1, 0),
+
+        white =  if_else(applicant_race.1 == 5 & 
+(is.na(applicant_ethnicity.2)|is.na(applicant_ethnicity.3)|is.na(applicant_ethnicity.4)|is.na(applicant_ethnicity.5)), 1, 0),
+
+      multiRace = if_else(applicant_race.1 == 1 
+                          & (applicant_race.2 %in% c(2,21:27, 3, 4, 41:44, 5) |
+                             applicant_race.3 %in% c(2,21:27, 3, 4, 41:44, 5) |
+                             applicant_race.4 %in% c(2,21:27, 3, 4, 41:44, 5) |
+                             applicant_race.5 %in% c(2,21:27, 3, 4, 41:44, 5))|
+
+
+
+                             applicant_race.1 %in% c(2, 21:27) 
+                          & (applicant_race.2 %in% c(1, 3, 4, 41:44, 5)|
+                             applicant_race.3 %in% c(1, 3, 4, 41:44, 5)|
+                             applicant_race.4 %in% c(1, 3, 4, 41:44, 5)|
+                             applicant_race.5 %in% c(1, 3, 4, 41:44, 5))|
+                            
+                             applicant_race.1 %in% c(3) 
+                          & (applicant_race.2 %in% c(1, 2, 21:27, 4, 41:44, 5)|
+                             applicant_race.3 %in% c(1, 2, 21:27, 4, 41:44, 5)|
+                             applicant_race.4 %in% c(1, 2, 21:27, 4, 41:44, 5)|
+                             applicant_race.5 %in% c(1, 2, 21:27, 4, 41:44, 5))|
+                               
+                             applicant_race.1 %in% c(4, 41:44) 
+                          & (applicant_race.2 %in% c(1, 2, 21:27, 3, 5)|
+                             applicant_race.3 %in% c(1, 2, 21:27, 3, 5)|
+                             applicant_race.4 %in% c(1, 2, 21:27, 3, 5)|
+                             applicant_race.5 %in% c(1, 2, 21:27, 3, 5))|
+                            
+                             applicant_race.1 %in% c(4) 
+                          & (applicant_race.2 %in% c(1, 2, 21:27, 3, 4, 41:44)|
+                             applicant_race.3 %in% c(1, 2, 21:27, 3, 4, 41:44)|
+                             applicant_race.4 %in% c(1, 2, 21:27, 3, 4, 41:44)|
+                             applicant_race.5 %in% c(1, 2, 21:27, 3, 4, 41:44))  
+                             ,1, 0)) 
+  
+  
+
+```
+
+For the rest of the analysis, I will be using a new variable, `race``. The applicant race were recoded into:
+1 = American Indians/Alaska Natives
+2 = Asian,
+3 = Black, 
+4 = Native Hawaiians and Other Pacific Islanders, 
+5 = White, and 
+6 = MultiRace. 
+
+Ethnicity was recoded into the 0/1 hispanicLatino variable.
+
+Looking at 2 cross-tabs to get an expected percentage of a fair breakdown of actions taken:
+  1) Action taken by state
+  2) Action taken by state and recoded race categories
+
+
+```{r Actions Taken by State (Counts and Percentage), include = FALSE}
+
+actionTakenstats = 
+  data3 %>%
+    group_by(action_taken) %>%
+      summarize(count = n()) %>%
+        mutate(actionTakenpct = scales::percent(count/sum(count), accuracy = 0.1))
+
+fileClosedstats = 
+  actionTakenstats %>%
+    filter(action_taken == 5)
+
+purchasedStats = 
+    actionTakenstats %>%
+    filter(action_taken == 6)
+
+actiontakeStats =   
+  data3 %>%
+      group_by(state_code, action_taken) %>%
+        summarise(countVar = n()) %>%
+          mutate(pctVar = scales::percent(countVar/sum(countVar), 0.1),
+                 countVar = scales::comma(countVar))
+
+```
+Across the 2 states and DC, the majority of loans in the data set were purchased (`r purchasedStats$actionTakenpct`). The variance in the percentages across the 3 jurisdictions is small, with DC having the lowest percentage of purchased loans at 80.9% and Virginia with the highest at 81.3%. Next, I will look at actions take by state and by race. 
+
+```{r Printing the Actions Taken by State Statistics, echo = FALSE}
+
+kable(actiontakeStats, col.names =  c("State", "Action Taken", "N", "%"), align = "ccrr")
+
+```
+
+
+```{r Number of Missing Race Entries, include = FALSE}
+
+missingRacecount = 
+  data3 %>%
+    filter(is.na(race)) %>%
+      group_by(race) %>%
+        summarize(N = n()) %>%
+        mutate(N = scales::comma(N))
+
+missingRacepct =
+ scales::percent(nrow(data3 %>%
+    filter(is.na(race)))/nrow(data3), 0.1)
+
+```
+
+There are a large number of missing race data (`r missingRacecount$N`) which will limit the insights for this analysis. In order to get a more accurate breakdown of the action taken percentage, I will remove observations with missing race information.
+
+```{r Data Set Without Missing Race Data}
+
+raceDataset = 
+  data3 %>%
+    filter(!is.na(race))
+
+```
+
+
+```{r Action Taken without Missing Race Data, warning = FALSE}
+
+purchasedStatsrace =
+  raceDataset %>%
+    count(action_taken) %>%
+      mutate(pct = scales::percent(n/sum(n), 0.1)) %>%
+        filter(action_taken == 6)
+
+kable(raceDataset %>%
+  group_by(state_code, action_taken) %>%
+    summarize(count = n()) %>%
+        mutate(actionTakenpct = scales::percent(count/sum(count), accuracy = 0.1)), 
+  col.names = c("State", "Action Taken", "N", "%"))
+
+```
+
+After removing the observations with missing race data, the action taken percent decreases from `r purchasedStats$actionTakenpct` to `r purchasedStatsrace$pct`, with DC having the highest purchased percentage at 65.2% and Maryland with the lowest percentage at 53.7%.
+
+
+```{r Race, State, Actions Taken Statistics}
+
+kable(raceDataset %>%
+      group_by(state_code, race, action_taken) %>%
+       summarize(countVar = n()) %>%
+          mutate(pctVar = scales::percent(countVar/sum(countVar), 0.1),
+                 countVar = scales::comma(countVar)), col.names = c("State", "Race", 
+                                                                    "Action Taken", "N", "%"), 
+      align = "ccccc")
+```
+
+From this table, we can see variability in the percentages of action taken by race. Please note that there are small cell sizes. Most race groups had higher percentages of 5 - File closed for incompleteness, with the exception of White applicants in all jurisdictions.  Multirace and Asian applicants had higher purchase percentages  in DC.
+
+```{r Statistically Testing the Difference in Actions Taken by State, include = FALSE}
+
+
+stateChisq = chisq.test(raceDataset$state_code, raceDataset$action_taken)
+
+
+```
+
+The chi square test for action taken by state was statistically significant, with a p-value of `r stateChisq$p.value`, meaning that there are differences in the observed versus expected counts  in action taken outcomes by jurisdiction.
+
+# Limitations & Next Steps
+
+Due to a large number of missing race entries (`r missingRacecount$N` or 
+`r missingRacepct` of observations), we do not have a full data set at our disposal to conduct analyses by race. Similarly, there were race groups - American Indian/Alaska Natives in particular - with single-digit cells by state. To overcome these limitations, more years and states (especially Alaska and southwestern states with higher AI/AN population) can be added to this work.
+
+Including observations with other loan outcomes (i.e., 1-4, 7, & 8) will give a more complete picture of loan disposition and not only incomplete or purchased.
+
+After adding more data, this program can be used to re-run current analyses and to continue on with a logistic regression in order to further understand the relationship between race and loan outcomes.
